@@ -136,8 +136,8 @@
                         <button id="start-over-btn" class="w-full bg-gray-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 transition">Start Over</button>
                     </div>
                     <!-- Results Display -->
-                    <div id="results-container" class="hidden mt-4 p-4 bg-blue-50 border-blue-200 rounded-lg">
-                        <p id="results-text" class="text-center font-medium text-blue-800"></p>
+                    <div id="results-container" class="hidden mt-4 p-4 rounded-lg border">
+                        <p id="results-text" class="text-center font-medium"></p>
                     </div>
                     <!-- Share Confirmation -->
                     <div id="share-confirmation" class="hidden mt-4 p-4 bg-green-50 border-green-200 rounded-lg">
@@ -343,11 +343,19 @@
         }
 
         function createDictationUI(passage, keywords) {
+            // Sort keywords by length (desc) to match longer phrases first
             const sortedKeywords = [...keywords].sort((a, b) => b.length - a.length);
             let passageHTML = passage;
-            const regex = new RegExp(`(${sortedKeywords.map(kw => kw.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')).join('|')})`, 'gi');
+            
+            // Create a regex that looks for whole words/phrases using word boundaries (\b).
+            // This prevents partial matches and correctly handles keywords next to punctuation.
+            const regex = new RegExp(`\\b(${sortedKeywords.map(kw => kw.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')).join('|')})\\b`, 'gi');
+            
             passageHTML = passageHTML.replace(regex, (match) => {
+                // Find the original keyword to preserve casing in the data-answer attribute
                 const originalKw = keywords.find(kw => kw.toLowerCase() === match.toLowerCase());
+                if (!originalKw) return match; // Safeguard in case of a mismatch
+
                 const inputWidth = Math.max(originalKw.length * 10, 80);
                 return `<input type="text" data-answer="${originalKw}" class="dictation-blank border-b-2 border-gray-400 focus:border-blue-500 outline-none bg-transparent text-center transition mx-1" style="width: ${inputWidth}px;">`;
             });
@@ -404,15 +412,47 @@
 
         function handleCheckAnswers() {
             const inputs = passageContainer.querySelectorAll('.dictation-blank');
+            const totalInputs = inputs.length;
+            if (totalInputs === 0) return;
+
             let correctCount = 0;
             inputs.forEach(input => {
                 if (input.value.trim().toLowerCase() === input.dataset.answer.toLowerCase()) {
-                    input.classList.add('correct'); correctCount++;
+                    input.classList.add('correct');
+                    input.classList.remove('incorrect');
+                    correctCount++;
                 } else {
                     input.classList.add('incorrect');
+                    input.classList.remove('correct');
                 }
             });
-            resultsText.textContent = `You got ${correctCount} out of ${inputs.length} correct!`;
+
+            const score = correctCount / totalInputs;
+            let message = '';
+            
+            // Reset results container styles
+            resultsContainer.className = 'mt-4 p-4 rounded-lg border'; // base classes
+            resultsText.className = 'text-center font-medium'; // base text classes
+
+            if (score === 1) {
+                message = `🎉 Excellent! You got all ${totalInputs} correct! 🎉`;
+                resultsContainer.classList.add('bg-green-100', 'border-green-200');
+                resultsText.classList.add('text-green-800');
+            } else if (score >= 0.7) {
+                message = `👍 Great job! You got ${correctCount} out of ${totalInputs} correct.`;
+                 resultsContainer.classList.add('bg-blue-100', 'border-blue-200');
+                 resultsText.classList.add('text-blue-800');
+            } else if (score > 0) {
+                message = `😊 Good effort! You got ${correctCount} out of ${totalInputs}. Keep practicing!`;
+                 resultsContainer.classList.add('bg-yellow-100', 'border-yellow-200');
+                 resultsText.classList.add('text-yellow-800');
+            } else {
+                message = `💪 Don't give up! Try listening to the passage again.`;
+                 resultsContainer.classList.add('bg-gray-100', 'border-gray-200');
+                 resultsText.classList.add('text-gray-800');
+            }
+
+            resultsText.textContent = message;
             resultsContainer.classList.remove('hidden');
         }
         
@@ -493,3 +533,5 @@
     </script>
 </body>
 </html>
+
+
